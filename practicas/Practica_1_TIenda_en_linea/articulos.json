@@ -1,0 +1,106 @@
+[
+    {
+        "marca": "HP",
+        "existencias": 2,
+        "tipo": "Computadora",
+        "precio": 12000,
+        "id": 1,
+        "nombre": "Laptop HP"
+    },
+    {
+        "marca": "Logitech",
+        "existencias": 10,
+        "tipo": "Accesorio",
+        "precio": 350,
+        "id": 2,
+        "nombre": "Mouse Logitech"
+    },
+    {
+        "marca": "Samsung",
+        "existencias": 2,
+        "tipo": "Pantalla",
+        "precio": 4000,
+        "id": 3,
+        "nombre": "Monitor Samsung"
+    },
+    {
+        "marca": "Redragon",
+        "existencias": 7,
+        "tipo": "Accesorio",
+        "precio": 800,
+        "id": 4,
+        "nombre": "Teclado Redragon"
+    },
+    {
+        "marca": "Ikea",
+        "existencias": 1,
+        "tipo": "Hogar",
+        "precio": 7000,
+        "id": 5,
+        "nombre": "Sofá Moderno"
+    },
+    {
+        "marca": "Nespresso",
+        "existencias": 5,
+        "tipo": "Hogar",
+        "precio": 2500,
+        "id": 6,
+        "nombre": "Cafetera Nespresso"
+    },
+    {
+        "marca": "Nike",
+        "existencias": 15,
+        "tipo": "Moda",
+        "precio": 600,
+        "id": 7,
+        "nombre": "Playera Nike"
+    },
+    {
+        "marca": "Levi's",
+        "existencias": 8,
+        "tipo": "Moda",
+        "precio": 1200,
+        "id": 8,
+        "nombre": "Pantalón Levi's"
+    },
+    {
+        "marca": "Adidas",
+        "existencias": 20,
+        "tipo": "Deportes",
+        "precio": 500,
+        "id": 9,
+        "nombre": "Balón de fútbol Adidas"
+    },
+    {
+        "marca": "Giant",
+        "existencias": 0,
+        "tipo": "Deportes",
+        "precio": 8000,
+        "id": 10,
+        "nombre": "Bicicleta Giant"
+    },
+    {
+        "marca": "Ikea",
+        "existencias": 8,
+        "tipo": "Hogar",
+        "precio": 450,
+        "id": 11,
+        "nombre": "Lampara de mesa"
+    },
+    {
+        "marca": "Puma",
+        "existencias": 12,
+        "tipo": "Moda",
+        "precio": 1500,
+        "id": 12,
+        "nombre": "Tenis Puma"
+    },
+    {
+        "marca": "Spalding",
+        "existencias": 7,
+        "tipo": "Deportes",
+        "precio": 700,
+        "id": 13,
+        "nombre": "Pelota de basquet Spalding"
+    }
+]
