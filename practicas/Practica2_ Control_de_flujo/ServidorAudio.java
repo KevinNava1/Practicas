@@ -1,7 +1,7 @@
 import java.net.*;
 import java.io.*;
 import javazoom.jl.player.Player;
-import java.io.ByteArrayInputStream;
+
 import java.util.*;
 
 public class ServidorAudio {
@@ -11,102 +11,149 @@ public class ServidorAudio {
     public static void main(String[] args){
         try{
             int pto = 1234;
+            int tamPaquete = 4096;
+            int ventana = 5;
+
             DatagramSocket s = new DatagramSocket(pto);
             s.setReuseAddress(true);
-            System.out.println("Servidor de Audio MP3 iniciado... esperando datagramas...");
+
+            System.out.println("Servidor de Audio MP3 iniciado... Esperando petición de cliente...");
+
+            DatagramPacket peticion = new DatagramPacket(new byte[20], 20);
+                s.receive(peticion);
+            String eleccion = new String(peticion.getData(), 0, peticion.getLength()).trim();
+
+            System.out.println("Transmitiendo canción: " + eleccion);
+
+            // Determinar el archivo a enviar
+            String archivoMP3;
+            if("1".equals(eleccion)) archivoMP3 = "cancion.mp3";
+            else archivoMP3 = "cancion2.mp3";
+
+            // Parámetros del cliente
+            InetAddress dst = peticion.getAddress();
+            int puertoCliente = peticion.getPort();
+
+            // Leer archivo MP3 como bytes binarios
+            FileInputStream fis = new FileInputStream(new File(archivoMP3));
+            byte[] bufferAudio = new byte[tamPaquete];
+            int bytesLeidos;
+            int numPaquete = 0;
+            int secuencia = 0;
+            int base = 0;
             
-            for(;;){
-                // Recibir paquete con metadatos
-                DatagramPacket pMetadatos = new DatagramPacket(new byte[20], 20);
-                s.receive(pMetadatos);
+            // Estructuras para retransmisión
+            byte[][] ventanaPaquetes = new byte[ventana][];
+            int[] secuenciasVentana = new int[ventana];
+
+            //timeout
+            s.setSoTimeout(1500); // ms
+            
+            while ((bytesLeidos = fis.read(bufferAudio)) != -1) {
+                boolean transmitido = false;
                 
-                String clienteId = pMetadatos.getAddress().toString() + ":" + pMetadatos.getPort();
-                
-                DataInputStream dis = new DataInputStream(new ByteArrayInputStream(pMetadatos.getData()));
-                int numPaquete = dis.readInt();
-                int tamAudio = dis.readInt();
-                int secuencia = dis.readInt();
-                int tipo = dis.readInt();
-                dis.close();
-                
-                if (numPaquete == -1) {
-                    System.out.println("Fin de transmisión recibido de " + clienteId);
-                    
-                    // Verificar si tenemos datos para este cliente
-                    if (transmisionesActivas.containsKey(clienteId) && 
-                        transmisionesActivas.get(clienteId).size() > 0) {
+                while (!transmitido) {
+                    try {
+                        // Metadatos
+                        ByteArrayOutputStream baosMeta = new ByteArrayOutputStream();
+                        DataOutputStream dosMeta = new DataOutputStream(baosMeta);
+                        dosMeta.writeInt(numPaquete);      // Número de paquete
+                        dosMeta.writeInt(bytesLeidos);     // Tamaño del audio
+                        dosMeta.writeInt(secuencia);       // Número de secuencia
+                        dosMeta.writeInt(0);              // Tipo: 0=datos MP3 crudos
+                        dosMeta.flush();
                         
-                        byte[] audioData = transmisionesActivas.get(clienteId).toByteArray();
-                        System.out.println("Reproduciendo archivo MP3 recibido (" + audioData.length + " bytes)...");
+                        byte[] bMeta = baosMeta.toByteArray();
+                        DatagramPacket pMeta = new DatagramPacket(bMeta, bMeta.length, dst, puertoCliente);
                         
-                        // Reproducir SIN hilos
-                        reproducirMP3(audioData);
+                        // Datos MP3
+                        byte[] audioData = Arrays.copyOf(bufferAudio, bytesLeidos);
+                        DatagramPacket pAudio = new DatagramPacket(audioData, audioData.length, dst, puertoCliente);
                         
-                        // Limpiar datos de este cliente
-                        transmisionesActivas.remove(clienteId);
-                        ultimasSecuencias.remove(clienteId);
+                        // Almacenar para retransmisión
+                        ventanaPaquetes[secuencia % ventana] = audioData;
+                        secuenciasVentana[secuencia % ventana] = secuencia;
+                        
+                        // Enviar
+                        s.send(pMeta);
+                        s.send(pAudio);
+                        
+                        System.out.println("Enviado paquete #" + numPaquete + 
+                                         ", secuencia: " + secuencia + 
+                                         ", bytes: " + bytesLeidos);
+                        
+                        // Esperar ACK
+                        DatagramPacket pACK = new DatagramPacket(new byte[4], 4);
+                        s.receive(pACK);
+                        
+                        DataInputStream disACK = new DataInputStream(new ByteArrayInputStream(pACK.getData()));
+                        int ackRecibido = disACK.readInt();
+                        disACK.close();
+                        
+                        System.out.println("ACK recibido: " + ackRecibido);
+                        
+                        if (ackRecibido >= base) {
+                            base = ackRecibido + 1;
+                        }
+                        
+                        transmitido = true;
+                        numPaquete++;
+                        secuencia++;
+                        
+                    } catch (SocketTimeoutException e) {
+                        System.out.println("Timeout - Retransmitiendo desde secuencia: " + base);
+                        
+                        for (int i = base; i < secuencia; i++) {
+                            if (ventanaPaquetes[i % ventana] != null) {
+                                // Retransmitir metadatos
+                                ByteArrayOutputStream baosMeta = new ByteArrayOutputStream();
+                                DataOutputStream dosMeta = new DataOutputStream(baosMeta);
+                                dosMeta.writeInt(numPaquete - (secuencia - i));
+                                dosMeta.writeInt(ventanaPaquetes[i % ventana].length);
+                                dosMeta.writeInt(i);
+                                dosMeta.writeInt(0);
+                                dosMeta.flush();
+                                
+                                byte[] bMeta = baosMeta.toByteArray();
+                                DatagramPacket pMeta = new DatagramPacket(bMeta, bMeta.length, dst, puertoCliente);
+                                s.send(pMeta);
+                                
+                                // Retransmitir audio
+                                DatagramPacket pAudio = new DatagramPacket(
+                                    ventanaPaquetes[i % ventana], 
+                                    ventanaPaquetes[i % ventana].length, 
+                                    dst, puertoCliente
+                                );
+                                s.send(pAudio);
+                                
+                                System.out.println("Retransmitido paquete secuencia: " + i);
+                            }
+                        }
                     }
-                    
-                    continue;
                 }
                 
-                // Inicializar almacenamiento para nuevo cliente
-                if (!transmisionesActivas.containsKey(clienteId)) {
-                    transmisionesActivas.put(clienteId, new ByteArrayOutputStream());
-                    ultimasSecuencias.put(clienteId, -1);
-                }
-                
-                // Recibir datos de audio
-                DatagramPacket pAudio = new DatagramPacket(new byte[tamAudio], tamAudio);
-                s.receive(pAudio);
-                
-                System.out.println("Paquete recibido de " + clienteId + 
-                                 ": #" + numPaquete + ", secuencia: " + secuencia + 
-                                 ", bytes: " + tamAudio);
-                
-                // Almacenar datos en orden
-                if (secuencia > ultimasSecuencias.get(clienteId)) {
-                    transmisionesActivas.get(clienteId).write(pAudio.getData(), 0, pAudio.getLength());
-                    ultimasSecuencias.put(clienteId, secuencia);
-                }
-                
-                // Enviar ACK
-                enviarACK(s, secuencia, pMetadatos.getAddress(), pMetadatos.getPort());
+                Arrays.fill(bufferAudio, (byte)0);
             }
+            
+            // Paquete de fin
+            ByteArrayOutputStream baosFin = new ByteArrayOutputStream();
+            DataOutputStream dosFin = new DataOutputStream(baosFin);
+            dosFin.writeInt(-1);
+            dosFin.writeInt(0);
+            dosFin.writeInt(-1);
+            dosFin.writeInt(-1);
+            dosFin.flush();
+            
+            byte[] bFin = baosFin.toByteArray();
+            DatagramPacket pFin = new DatagramPacket(bFin, bFin.length, dst, puertoCliente);
+            s.send(pFin);
+            
+            System.out.println("Transmisión completada. Total paquetes: " + numPaquete);
+            
+            fis.close();
+            s.close();
+
         }catch(Exception e){
-            e.printStackTrace();
-        }
-    }
-    
-    private static void enviarACK(DatagramSocket s, int secuencia, InetAddress address, int port) {
-        try {
-            ByteArrayOutputStream baosACK = new ByteArrayOutputStream();
-            DataOutputStream dosACK = new DataOutputStream(baosACK);
-            dosACK.writeInt(secuencia);
-            dosACK.flush();
-            
-            byte[] bACK = baosACK.toByteArray();
-            DatagramPacket pACK = new DatagramPacket(bACK, bACK.length, address, port);
-            s.send(pACK);
-            
-            dosACK.close();
-        } catch (Exception e) {
-            System.err.println("Error enviando ACK: " + e.getMessage());
-        }
-    }
-    
-    private static void reproducirMP3(byte[] audioData) {
-        try {
-            System.out.println("Iniciando reproducción de " + audioData.length + " bytes...");
-            ByteArrayInputStream bais = new ByteArrayInputStream(audioData);
-            Player player = new Player(bais);
-            
-            // Reproducción SIN hilos
-            player.play();
-            System.out.println("Reproducción finalizada");
-            
-        } catch (Exception e) {
-            System.err.println("Error al reproducir MP3: " + e.getMessage());
             e.printStackTrace();
         }
     }
