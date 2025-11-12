@@ -4,7 +4,7 @@ import java.util.*;
 import javazoom.jl.player.Player;
 
 public class ClienteMulticast {
-    private static final String GRUPO_MULTICAST = "230.0.0.1";
+    private static final String GRUPO_MULTICAST = "239.255.255.250";
     private static final int PUERTO_MULTICAST = 7777;
     private static final int PUERTO_CONTROL = 7778;
     private static final String SERVIDOR = "127.0.0.1";
@@ -52,6 +52,10 @@ public class ClienteMulticast {
             
             socketControl.close();
             System.out.println("Conectado al servidor multicast");
+
+            NetworkInterface ni = NetworkInterface.getByName("en0"); // o el nombre de tu interfaz Wi-Fi
+            socketControl.joinGroup(new InetSocketAddress("10.100.79.151", PUERTO_MULTICAST), ni);
+
             
         } catch (Exception e) {
             System.err.println("Error conectando: " + e.getMessage());

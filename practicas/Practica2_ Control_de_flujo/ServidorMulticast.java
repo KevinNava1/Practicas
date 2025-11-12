@@ -3,7 +3,7 @@ import java.io.*;
 import java.util.*;
 
 public class ServidorMulticast {
-    private static final String GRUPO_MULTICAST = "230.0.0.1";
+    private static final String GRUPO_MULTICAST = "239.255.255.250";
     private static final int PUERTO_MULTICAST = 7777;
     private static final int PUERTO_CONTROL = 7778;
     private static final int TAMANO_PAQUETE = 16384;
