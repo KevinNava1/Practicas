@@ -16,6 +16,8 @@ public class ClienteChat extends JFrame {
     // NUEVO: Manejo de múltiples salas
     private Map<String, SalaInfo> salasActivas; // nombre -> info de la sala
     private String salaSeleccionada; // Sala que se está viendo actualmente
+    private ManejadorAudio manejadorAudio;
+    private boolean grabandoAudio = false;
 
     // Componentes GUI
     private JTextArea areaChat;
@@ -31,6 +33,7 @@ public class ClienteChat extends JFrame {
     private DefaultListModel<String> modeloUsuarios;
     private JComboBox<String> comboStickers;
     private JLabel labelSalaActual;
+    private JButton btnGrabarAudio;
 
     public ClienteChat() {
         nombreUsuario = JOptionPane.showInputDialog(this, "Ingresa tu nombre de usuario:");
@@ -39,6 +42,7 @@ public class ClienteChat extends JFrame {
         }
 
         salasActivas = new ConcurrentHashMap<>();
+        manejadorAudio = new ManejadorAudio();
         configurarVentana();
         configurarSocket();
         iniciarHiloReceptorServidor();
@@ -116,11 +120,15 @@ public class ClienteChat extends JFrame {
         comboStickers = new JComboBox<>(stickers);
         JButton btnSticker = new JButton("Sticker");
         JButton btnPrivado = new JButton("💌 Privado");
+        btnGrabarAudio = new JButton("🎤 Grabar Audio");
+        btnGrabarAudio.setBackground(Color.RED);
+        btnGrabarAudio.setForeground(Color.WHITE);
 
         panelExtras.add(new JLabel("Stickers:"));
         panelExtras.add(comboStickers);
         panelExtras.add(btnSticker);
         panelExtras.add(btnPrivado);
+        panelExtras.add(btnGrabarAudio);
 
         panelInferior.add(campoMensaje, BorderLayout.CENTER);
         panelInferior.add(btnEnviar, BorderLayout.EAST);
@@ -142,6 +150,7 @@ public class ClienteChat extends JFrame {
         btnSticker.addActionListener(e -> enviarSticker());
         btnPrivado.addActionListener(e -> enviarMensajePrivado());
         campoMensaje.addActionListener(e -> enviarMensaje());
+        btnGrabarAudio.addActionListener(e -> manejarGrabacionAudio());
 
         setVisible(true);
     }
@@ -236,6 +245,9 @@ public class ClienteChat extends JFrame {
 
             mostrarMensaje("🎉 Conectado a grupo multicast de " + nombreSala);
 
+            Mensaje confirmacion = new Mensaje(Mensaje.CONFIRMAR_UNION, nombreUsuario, nombreSala, "");
+            enviarAlServidor(confirmacion);
+
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this,
                 "Error al unirse al grupo multicast: " + e.getMessage(),
@@ -307,9 +319,6 @@ public class ClienteChat extends JFrame {
                     mostrarMensajeSala(msg);
                 }
             }
-
-            // Actualizar lista de usuarios
-            listarUsuarios();
         }
     }
 
@@ -426,6 +435,40 @@ public class ClienteChat extends JFrame {
             }
         } else {
             JOptionPane.showMessageDialog(this, "Necesitas estar en una sala con usuarios");
+        }
+    }
+
+    private void manejarGrabacionAudio() {
+        if (salaSeleccionada == null) {
+            JOptionPane.showMessageDialog(this, "Selecciona una sala primero");
+            return;
+        }
+        if(!grabandoAudio) {
+            try {
+                manejadorAudio.iniciarGrabacion();
+                grabandoAudio = true;
+                btnGrabarAudio.setText("◼ Detener");
+                btnGrabarAudio.setBackground(Color.GREEN);
+                mostrarMensaje("🎤 Grabando audio...");
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this,
+                    "Error al acceder al micrófono: " + e.getMessage(), 
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        } else {
+            byte[] datosAudio = manejadorAudio.detenerGrabacion();
+            grabandoAudio = false;
+            btnGrabarAudio.setText("🎤 Grabar Audio");
+            btnGrabarAudio.setBackground(Color.RED);
+
+            if(datosAudio.length > 1000) {
+                Mensaje msg = new Mensaje(Mensaje.ENVIAR_AUDIO, nombreUsuario, salaSeleccionada, "");
+                msg.setDatos(datosAudio);
+                enviarAlServidor(msg);
+                mostrarMensaje("✅ Audio enviado (" + (datosAudio.length / 1024) + " KB)");
+            } else {
+                JOptionPane.showMessageDialog(this, "Audio muy corto. Intenta grabar más tiempo.");
+            }
         }
     }
 

@@ -4,11 +4,13 @@ public class Mensaje implements Serializable {
     // Tipos de mensaje
     public static final String CREAR_SALA = "CREAR_SALA";
     public static final String UNIRSE_SALA = "UNIRSE_SALA";
+    public static final String CONFIRMAR_UNION = "CONFIRMAR_UNION";
     public static final String SALIR_SALA = "SALIR_SALA";
     public static final String MENSAJE_SALA = "MENSAJE_SALA";
     public static final String MENSAJE_PRIVADO = "MENSAJE_PRIVADO";
     public static final String LISTAR_USUARIOS = "LISTAR_USUARIOS";
     public static final String ENVIAR_STICKER = "ENVIAR_STICKER";
+    public static final String ENVIAR_AUDIO = "ENVIAR_AUDIO";
     public static final String RESPUESTA = "RESPUESTA";
 
     private String tipo;
@@ -16,7 +18,7 @@ public class Mensaje implements Serializable {
     private String sala;
     private String contenido;
     private String destinatario;
-    private byte[] datos;
+    private byte[] datos; // Para datos y audios
     private String direccionMulticast; // NUEVO: dirección multicast de la sala
 
     public Mensaje(String tipo, String usuario, String sala, String contenido) {

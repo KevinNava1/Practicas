@@ -75,6 +75,12 @@ public class Servidor {
                 case Mensaje.ENVIAR_STICKER:
                     enviarStickerASala(mensaje);
                     break;
+                case Mensaje.CONFIRMAR_UNION:
+                    confirmarUnionSala(mensaje, clienteIP, clientePuerto);
+                    break;
+                case Mensaje.ENVIAR_AUDIO:
+                    enviarAudioASala(mensaje);
+                    break;
             }
 
         } catch (Exception e) {
@@ -113,15 +119,23 @@ public class Servidor {
 
             // Enviar dirección multicast al cliente
             Mensaje respuesta = new Mensaje(Mensaje.RESPUESTA, "Servidor", nombreSala,
-                                           "✅ Te uniste a '" + nombreSala + "'");
+                                           "Conectando a '" + nombreSala + "'...");
             respuesta.setDireccionMulticast(sala.getDireccionMulticast());
             enviarPaquete(respuesta, ip, puerto);
+        } else {
+            enviarRespuesta(msg.getUsuario(), "❌ La sala no existe", ip, puerto);
+        }
+    }
 
+    private void confirmarUnionSala(Mensaje msg, InetAddress ip, int puerto) {
+        String nombreSala = msg.getSala();
+        Sala sala = salas.get(nombreSala);
+
+        if(sala != null){
+            sala.agregarUsuario(msg.getUsuario(), ip, puerto);
             // Notificar a toda la sala usando multicast
             notificarASalaMulticast(nombreSala, "👋 " + msg.getUsuario() + " se unió a la sala");
             actualizarListaUsuarios(nombreSala);
-        } else {
-            enviarRespuesta(msg.getUsuario(), "❌ La sala no existe", ip, puerto);
         }
     }
 
@@ -164,6 +178,23 @@ public class Servidor {
     private void enviarStickerASala(Mensaje msg) {
         String mensajeFormato = msg.getUsuario() + " envió: " + msg.getContenido();
         notificarASalaMulticast(msg.getSala(), mensajeFormato);
+    }
+
+    private void enviarAudioASala(Mensaje msg) {
+        Sala sala = salas.get(msg.getSala());
+        if(sala != null) {
+            Mensaje msgAudio = new Mensaje(Mensaje.RESPUESTA, "Servidor", msg.getSala(), "AUDIO:" + msg.getUsuario());
+
+            try {
+                byte[] datos = msgAudio.toBytes();
+                InetAddress grupoMulticast = InetAddress.getByName(sala.getDireccionMulticast());
+                DatagramPacket paquete = new DatagramPacket(datos, datos.length, grupoMulticast, PUERTO_MULTICAST);
+                socket.send(paquete);
+                System.out.println("🎤 Audio enviado de " + msg.getUsuario() + " a sala " + msg.getSala());
+            } catch (Exception e) {
+                System.err.println("Error enviando audio " + e.getMessage());
+            }
+        }
     }
 
     private void listarUsuarios(Mensaje msg, InetAddress ip, int puerto) {
