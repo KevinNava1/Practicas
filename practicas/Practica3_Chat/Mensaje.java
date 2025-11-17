@@ -7,20 +7,17 @@ public class Mensaje implements Serializable {
     public static final String SALIR_SALA = "SALIR_SALA";
     public static final String MENSAJE_SALA = "MENSAJE_SALA";
     public static final String MENSAJE_PRIVADO = "MENSAJE_PRIVADO";
+    public static final String LISTAR_USUARIOS = "LISTAR_USUARIOS";
     public static final String ENVIAR_STICKER = "ENVIAR_STICKER";
-    public static final String ENVIAR_AUDIO = "ENVIAR_AUDIO";
     public static final String RESPUESTA = "RESPUESTA";
-    public static final String DESCONECTAR = "DESCONECTAR";
-    public static final String INFO_SALA = "INFO_SALA"; // Para enviar info de multicast
 
     private String tipo;
     private String usuario;
     private String sala;
     private String contenido;
     private String destinatario;
-    private byte[] datos; // Para audios
-    private String direccionMulticast; // Dirección multicast de la sala
-    private int puertoMulticast; // Puerto multicast de la sala
+    private byte[] datos;
+    private String direccionMulticast; // NUEVO: dirección multicast de la sala
 
     public Mensaje(String tipo, String usuario, String sala, String contenido) {
         this.tipo = tipo;
@@ -53,11 +50,6 @@ public class Mensaje implements Serializable {
         this.direccionMulticast = direccionMulticast;
     }
 
-    public int getPuertoMulticast() { return puertoMulticast; }
-    public void setPuertoMulticast(int puertoMulticast) {
-        this.puertoMulticast = puertoMulticast;
-    }
-
     public byte[] toBytes() throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         ObjectOutputStream oos = new ObjectOutputStream(bos);
@@ -72,4 +64,3 @@ public class Mensaje implements Serializable {
         return (Mensaje) ois.readObject();
     }
 }
-

@@ -4,15 +4,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class Sala {
     private String nombre;
-    private Set<String> usuarios; // Solo nombres de usuarios
-    private String direccionMulticast;
-    private int puertoMulticast;
+    private String direccionMulticast; // NUEVO: cada sala tiene su IP multicast
+    private Map<String, UsuarioInfo> usuarios;
 
-    public Sala(String nombre, String direccionMulticast, int puertoMulticast) {
+    public Sala(String nombre, String direccionMulticast) {
         this.nombre = nombre;
-        this.usuarios = ConcurrentHashMap.newKeySet();
         this.direccionMulticast = direccionMulticast;
-        this.puertoMulticast = puertoMulticast;
+        this.usuarios = new ConcurrentHashMap<>();
     }
 
     public String getNombre() {
@@ -23,12 +21,8 @@ public class Sala {
         return direccionMulticast;
     }
 
-    public int getPuertoMulticast() {
-        return puertoMulticast;
-    }
-
-    public void agregarUsuario(String usuario) {
-        usuarios.add(usuario);
+    public void agregarUsuario(String usuario, InetAddress ip, int puerto) {
+        usuarios.put(usuario, new UsuarioInfo(ip, puerto));
         System.out.println("Usuario " + usuario + " unido a sala " + nombre);
     }
 
@@ -38,15 +32,32 @@ public class Sala {
     }
 
     public Set<String> getUsuarios() {
-        return new HashSet<>(usuarios);
+        return usuarios.keySet();
+    }
+
+    public UsuarioInfo getUsuarioInfo(String usuario) {
+        return usuarios.get(usuario);
+    }
+
+    public List<UsuarioInfo> getAllUsuarios() {
+        return new ArrayList<>(usuarios.values());
     }
 
     public boolean estaVacia() {
         return usuarios.isEmpty();
     }
 
-    public boolean contieneUsuario(String usuario) {
-        return usuarios.contains(usuario);
+    public static class UsuarioInfo {
+        private InetAddress ip;
+        private int puerto;
+
+        public UsuarioInfo(InetAddress ip, int puerto) {
+            this.ip = ip;
+            this.puerto = puerto;
+        }
+
+        public InetAddress getIp() { return ip; }
+        public int getPuerto() { return puerto; }
     }
 }
 

@@ -1,19 +1,21 @@
 import java.net.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Servidor {
     private static final int PUERTO = 9876;
-    private static final String BASE_MULTICAST = "230.0.0.";
-    private static final int BASE_PUERTO_MULTICAST = 4446;
+    private static final int PUERTO_MULTICAST = 6789; // Puerto para mensajes multicast
+    private static final String BASE_MULTICAST = "230.0.0."; // Rango multicast
 
     private DatagramSocket socket;
     private Map<String, Sala> salas;
-    private int contadorSalas = 1;
+    private AtomicInteger contadorSalas; // Para asignar IPs multicast únicas
     private boolean corriendo;
 
     public Servidor() {
         salas = new ConcurrentHashMap<>();
+        contadorSalas = new AtomicInteger(1);
         corriendo = true;
     }
 
@@ -21,14 +23,12 @@ public class Servidor {
         try {
             socket = new DatagramSocket(PUERTO);
             System.out.println("🚀 Servidor iniciado en puerto " + PUERTO);
-            System.out.println("📡 Usando direcciones multicast: " + BASE_MULTICAST + "X");
+            System.out.println("📡 Modo multicast activado");
 
             while (corriendo) {
                 byte[] buffer = new byte[65535];
                 DatagramPacket paquete = new DatagramPacket(buffer, buffer.length);
-
                 socket.receive(paquete);
-
                 new Thread(() -> procesarMensaje(paquete)).start();
             }
 
@@ -51,24 +51,29 @@ public class Servidor {
             int clientePuerto = paquete.getPort();
 
             System.out.println("📩 Recibido: " + mensaje.getTipo() +
-                             " de " + mensaje.getUsuario() +
-                             (mensaje.getSala() != null ? " - Sala: " + mensaje.getSala() : ""));
+                             " de " + mensaje.getUsuario());
 
             switch (mensaje.getTipo()) {
                 case Mensaje.CREAR_SALA:
                     crearSala(mensaje, clienteIP, clientePuerto);
                     break;
-
                 case Mensaje.UNIRSE_SALA:
                     unirseASala(mensaje, clienteIP, clientePuerto);
                     break;
-
                 case Mensaje.SALIR_SALA:
-                    salirDeSala(mensaje);
+                    salirDeSala(mensaje, clienteIP, clientePuerto);
                     break;
-
-                case Mensaje.DESCONECTAR:
-                    desconectarUsuario(mensaje);
+                case Mensaje.MENSAJE_SALA:
+                    enviarMensajeASala(mensaje);
+                    break;
+                case Mensaje.MENSAJE_PRIVADO:
+                    enviarMensajePrivado(mensaje);
+                    break;
+                case Mensaje.LISTAR_USUARIOS:
+                    listarUsuarios(mensaje, clienteIP, clientePuerto);
+                    break;
+                case Mensaje.ENVIAR_STICKER:
+                    enviarStickerASala(mensaje);
                     break;
             }
 
@@ -82,25 +87,20 @@ public class Servidor {
         String nombreSala = msg.getSala();
 
         if (!salas.containsKey(nombreSala)) {
-            // Asignar dirección multicast única
-            String dirMulticast = BASE_MULTICAST + contadorSalas;
-            int puertoMulticast = BASE_PUERTO_MULTICAST + contadorSalas;
-            contadorSalas++;
-
-            Sala nuevaSala = new Sala(nombreSala, dirMulticast, puertoMulticast);
+            // Generar dirección multicast única para esta sala
+            String direccionMulticast = BASE_MULTICAST + contadorSalas.getAndIncrement();
+            Sala nuevaSala = new Sala(nombreSala, direccionMulticast);
             salas.put(nombreSala, nuevaSala);
 
-            // Enviar confirmación con info de multicast
-            Mensaje respuesta = new Mensaje(Mensaje.RESPUESTA, "Servidor",
-                                           nombreSala, "✅ Sala '" + nombreSala + "' creada");
-            respuesta.setDireccionMulticast(dirMulticast);
-            respuesta.setPuertoMulticast(puertoMulticast);
+            // Enviar respuesta con la dirección multicast
+            Mensaje respuesta = new Mensaje(Mensaje.RESPUESTA, "Servidor", "",
+                                           "✅ Sala '" + nombreSala + "' creada");
+            respuesta.setDireccionMulticast(direccionMulticast);
             enviarPaquete(respuesta, ip, puerto);
 
-            System.out.println("✅ Sala creada: " + nombreSala +
-                             " -> " + dirMulticast + ":" + puertoMulticast);
+            System.out.println("Sala creada: " + nombreSala + " -> " + direccionMulticast);
         } else {
-            enviarRespuesta("⚠️ La sala ya existe", ip, puerto);
+            enviarRespuesta(msg.getUsuario(), "⚠️ La sala ya existe", ip, puerto);
         }
     }
 
@@ -109,86 +109,105 @@ public class Servidor {
         Sala sala = salas.get(nombreSala);
 
         if (sala != null) {
-            sala.agregarUsuario(msg.getUsuario());
+            sala.agregarUsuario(msg.getUsuario(), ip, puerto);
 
-            // Enviar info de la sala (dirección multicast)
-            Mensaje respuesta = new Mensaje(Mensaje.INFO_SALA, "Servidor",
-                                           nombreSala, "✅ Te uniste a '" + nombreSala + "'");
+            // Enviar dirección multicast al cliente
+            Mensaje respuesta = new Mensaje(Mensaje.RESPUESTA, "Servidor", nombreSala,
+                                           "✅ Te uniste a '" + nombreSala + "'");
             respuesta.setDireccionMulticast(sala.getDireccionMulticast());
-            respuesta.setPuertoMulticast(sala.getPuertoMulticast());
             enviarPaquete(respuesta, ip, puerto);
 
-            // Notificar a todos en la sala vía multicast
-            notificarViaMulticast(sala, "👋 " + msg.getUsuario() + " se unió a la sala");
-            actualizarListaUsuariosMulticast(sala);
-
+            // Notificar a toda la sala usando multicast
+            notificarASalaMulticast(nombreSala, "👋 " + msg.getUsuario() + " se unió a la sala");
+            actualizarListaUsuarios(nombreSala);
         } else {
-            enviarRespuesta("❌ La sala no existe", ip, puerto);
+            enviarRespuesta(msg.getUsuario(), "❌ La sala no existe", ip, puerto);
         }
     }
 
-    private void salirDeSala(Mensaje msg) {
+    private void salirDeSala(Mensaje msg, InetAddress ip, int puerto) {
         String nombreSala = msg.getSala();
         Sala sala = salas.get(nombreSala);
 
         if (sala != null) {
             sala.removerUsuario(msg.getUsuario());
+            notificarASalaMulticast(nombreSala, "👋 " + msg.getUsuario() + " salió de la sala");
+            actualizarListaUsuarios(nombreSala);
 
-            // Notificar a todos en la sala
-            notificarViaMulticast(sala, "👋 " + msg.getUsuario() + " salió de la sala");
-            actualizarListaUsuariosMulticast(sala);
-
-            // Si la sala está vacía, eliminarla
             if (sala.estaVacia()) {
                 salas.remove(nombreSala);
-                System.out.println("🗑️ Sala '" + nombreSala + "' eliminada (vacía)");
+                System.out.println("Sala '" + nombreSala + "' eliminada (vacía)");
+            }
+
+            enviarRespuesta(msg.getUsuario(), "✅ Saliste de '" + nombreSala + "'", ip, puerto);
+        }
+    }
+
+    private void enviarMensajeASala(Mensaje msg) {
+        String mensajeFormato = msg.getUsuario() + ": " + msg.getContenido();
+        notificarASalaMulticast(msg.getSala(), mensajeFormato);
+    }
+
+    private void enviarMensajePrivado(Mensaje msg) {
+        Sala sala = salas.get(msg.getSala());
+        if (sala != null) {
+            Sala.UsuarioInfo destinatarioInfo = sala.getUsuarioInfo(msg.getDestinatario());
+            if (destinatarioInfo != null) {
+                String mensajeFormato = "[PRIVADO de " + msg.getUsuario() + "] " + msg.getContenido();
+                Mensaje respuesta = new Mensaje(Mensaje.RESPUESTA, "Servidor",
+                                                msg.getSala(), mensajeFormato);
+                enviarPaquete(respuesta, destinatarioInfo.getIp(), destinatarioInfo.getPuerto());
             }
         }
     }
 
-    private void desconectarUsuario(Mensaje msg) {
-        String usuario = msg.getUsuario();
-        System.out.println("👋 Usuario " + usuario + " desconectándose...");
+    private void enviarStickerASala(Mensaje msg) {
+        String mensajeFormato = msg.getUsuario() + " envió: " + msg.getContenido();
+        notificarASalaMulticast(msg.getSala(), mensajeFormato);
+    }
 
-        // Remover de todas las salas
-        for (Sala sala : salas.values()) {
-            if (sala.contieneUsuario(usuario)) {
-                sala.removerUsuario(usuario);
-                notificarViaMulticast(sala, "👋 " + usuario + " se desconectó");
-                actualizarListaUsuariosMulticast(sala);
+    private void listarUsuarios(Mensaje msg, InetAddress ip, int puerto) {
+        Sala sala = salas.get(msg.getSala());
+        if (sala != null) {
+            Set<String> usuarios = sala.getUsuarios();
+            String lista = "👥 Usuarios en " + msg.getSala() + ":\n" +
+                          String.join(", ", usuarios);
+            enviarRespuesta(msg.getUsuario(), lista, ip, puerto);
+        }
+    }
+
+    private void actualizarListaUsuarios(String nombreSala) {
+        Sala sala = salas.get(nombreSala);
+        if (sala != null) {
+            Set<String> usuarios = sala.getUsuarios();
+            String lista = "USUARIOS:" + String.join(",", usuarios);
+            notificarASalaMulticast(nombreSala, lista);
+        }
+    }
+
+    // MÉTODO NUEVO: Enviar mensaje usando MULTICAST
+    private void notificarASalaMulticast(String nombreSala, String mensaje) {
+        Sala sala = salas.get(nombreSala);
+        if (sala != null) {
+            try {
+                Mensaje msg = new Mensaje(Mensaje.RESPUESTA, "Servidor", nombreSala, mensaje);
+                byte[] datos = msg.toBytes();
+
+                // Enviar al grupo multicast de la sala
+                InetAddress grupoMulticast = InetAddress.getByName(sala.getDireccionMulticast());
+                DatagramPacket paquete = new DatagramPacket(datos, datos.length,
+                                                           grupoMulticast, PUERTO_MULTICAST);
+
+                // Usamos el socket normal para enviar al grupo multicast
+                socket.send(paquete);
+
+            } catch (Exception e) {
+                System.err.println("Error enviando multicast: " + e.getMessage());
             }
         }
-
-        // Limpiar salas vacías
-        salas.entrySet().removeIf(entry -> entry.getValue().estaVacia());
     }
 
-    private void actualizarListaUsuariosMulticast(Sala sala) {
-        Set<String> usuarios = sala.getUsuarios();
-        String lista = "USUARIOS:" + String.join(",", usuarios);
-        notificarViaMulticast(sala, lista);
-    }
-
-    private void notificarViaMulticast(Sala sala, String contenido) {
-        try {
-            Mensaje msg = new Mensaje(Mensaje.RESPUESTA, "Servidor",
-                                     sala.getNombre(), contenido);
-            byte[] datos = msg.toBytes();
-
-            InetAddress grupo = InetAddress.getByName(sala.getDireccionMulticast());
-            DatagramPacket paquete = new DatagramPacket(datos, datos.length,
-                                                       grupo, sala.getPuertoMulticast());
-
-            DatagramSocket socketTemp = new DatagramSocket();
-            socketTemp.send(paquete);
-            socketTemp.close();
-
-        } catch (Exception e) {
-            System.err.println("Error enviando multicast: " + e.getMessage());
-        }
-    }
-
-    private void enviarRespuesta(String contenido, InetAddress ip, int puerto) {
+    private void enviarRespuesta(String usuario, String contenido, InetAddress ip, int puerto) {
         Mensaje respuesta = new Mensaje(Mensaje.RESPUESTA, "Servidor", "", contenido);
         enviarPaquete(respuesta, ip, puerto);
     }
@@ -207,4 +226,3 @@ public class Servidor {
         new Servidor().iniciar();
     }
 }
-
