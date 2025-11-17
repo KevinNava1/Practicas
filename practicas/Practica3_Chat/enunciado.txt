@@ -1,0 +1,6 @@
+- Implementar una aplicación cliente-servidor usando sockets de datagramas e hilos
+- Crear salas de chat
+- Ingresar a una o más salas de chat e interactuar en ellas
+- En cada sala de chat el usuario podrá enviar/ recibir mensajes, stickers, audios; así como listar a los usuarios dentro de la sala.
+- Se podrán enviar mensajes a todos los usuarios en la sala o mensajes privados a 1 solo usuario.
+- Cuando un usuario abandone una sala se deberá actualizar la lista de usuarios activos en dicha sala.
