@@ -6,18 +6,20 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class ClienteChat extends JFrame {
     private static final String SERVIDOR_IP = "localhost";
-    private static final int SERVIDOR_PUERTO = 9876;
+    private static final int SERVIDOR_PUERTO = 6000;
     private static final int PUERTO_MULTICAST = 6789;
     private static final int CLIENTE_PUERTO = 5000;
 
-    private DatagramSocket socketCliente; // Para comunicación con servidor
+    private DatagramSocket socketCliente;
     private String nombreUsuario;
 
-    // NUEVO: Manejo de múltiples salas
-    private Map<String, SalaInfo> salasActivas; // nombre -> info de la sala
-    private String salaSeleccionada; // Sala que se está viendo actualmente
+    private Map<String, SalaInfo> salasActivas;
+    private String salaSeleccionada;
     private ManejadorAudio manejadorAudio;
     private boolean grabandoAudio = false;
+
+    private byte[] ultimoAudioRecibido;
+    private String usuarioAudioRecibido;
 
     // Componentes GUI
     private JTextArea areaChat;
@@ -27,13 +29,14 @@ public class ClienteChat extends JFrame {
     private JButton btnUnirse;
     private JButton btnSalir;
     private JButton btnListarUsuarios;
-    private DefaultListModel<String> modeloSalas; // NUEVO: Lista de salas
-    private JList<String> listaSalas; // NUEVO: JList para salas
+    private DefaultListModel<String> modeloSalas;
+    private JList<String> listaSalas;
     private JList<String> listaUsuarios;
     private DefaultListModel<String> modeloUsuarios;
     private JComboBox<String> comboStickers;
     private JLabel labelSalaActual;
     private JButton btnGrabarAudio;
+    private JButton btnReproducirAudio;
 
     public ClienteChat() {
         nombreUsuario = JOptionPane.showInputDialog(this, "Ingresa tu nombre de usuario:");
@@ -43,9 +46,20 @@ public class ClienteChat extends JFrame {
 
         salasActivas = new ConcurrentHashMap<>();
         manejadorAudio = new ManejadorAudio();
+        verificarAudio();
         configurarVentana();
         configurarSocket();
         iniciarHiloReceptorServidor();
+    }
+
+    private void verificarAudio() {
+        boolean audioDisponible = ManejadorAudio.verificarAudioDisponible();
+        if (!audioDisponible) {
+            JOptionPane.showMessageDialog(this, 
+                "⚠️ El audio no está disponible en este sistema.\n" +
+                "La funcionalidad de audio podría no funcionar correctamente.",
+                "Advertencia de Audio", JOptionPane.WARNING_MESSAGE);
+        }
     }
 
     private void configurarVentana() {
@@ -54,7 +68,7 @@ public class ClienteChat extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout(10, 10));
 
-        // ========== PANEL IZQUIERDO: LISTA DE SALAS ==========
+        // Panel Izquierdo: Lista de Salas
         JPanel panelIzquierdo = new JPanel(new BorderLayout());
         panelIzquierdo.setBorder(BorderFactory.createTitledBorder("🏠 Mis Salas"));
         panelIzquierdo.setPreferredSize(new Dimension(200, 0));
@@ -64,7 +78,6 @@ public class ClienteChat extends JFrame {
         listaSalas.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         listaSalas.setFont(new Font("Arial", Font.PLAIN, 13));
 
-        // Listener para cambiar de sala al hacer clic
         listaSalas.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 cambiarSalaActiva();
@@ -74,7 +87,7 @@ public class ClienteChat extends JFrame {
         JScrollPane scrollSalas = new JScrollPane(listaSalas);
         panelIzquierdo.add(scrollSalas, BorderLayout.CENTER);
 
-        // ========== PANEL SUPERIOR: CONTROLES ==========
+        // Panel Superior: Controles
         JPanel panelSuperior = new JPanel(new FlowLayout(FlowLayout.LEFT));
         panelSuperior.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
@@ -92,7 +105,7 @@ public class ClienteChat extends JFrame {
         panelSuperior.add(new JLabel(" | Sala: "));
         panelSuperior.add(labelSalaActual);
 
-        // ========== PANEL CENTRAL: CHAT ==========
+        // Panel Central: Chat
         areaChat = new JTextArea();
         areaChat.setEditable(false);
         areaChat.setLineWrap(true);
@@ -100,14 +113,14 @@ public class ClienteChat extends JFrame {
         areaChat.setFont(new Font("Monospaced", Font.PLAIN, 12));
         JScrollPane scrollChat = new JScrollPane(areaChat);
 
-        // ========== PANEL DERECHO: USUARIOS ==========
+        // Panel Derecho: Usuarios
         modeloUsuarios = new DefaultListModel<>();
         listaUsuarios = new JList<>(modeloUsuarios);
         listaUsuarios.setBorder(BorderFactory.createTitledBorder("👥 Usuarios"));
         JScrollPane scrollUsuarios = new JScrollPane(listaUsuarios);
         scrollUsuarios.setPreferredSize(new Dimension(180, 0));
 
-        // ========== PANEL INFERIOR: ENVÍO ==========
+        // Panel Inferior: Envío
         JPanel panelInferior = new JPanel(new BorderLayout(5, 5));
         panelInferior.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
@@ -124,24 +137,30 @@ public class ClienteChat extends JFrame {
         btnGrabarAudio.setBackground(Color.RED);
         btnGrabarAudio.setForeground(Color.WHITE);
 
+        btnReproducirAudio = new JButton("🔊 Reproducir Audio");
+        btnReproducirAudio.setBackground(Color.BLUE);
+        btnReproducirAudio.setForeground(Color.WHITE);
+        btnReproducirAudio.setEnabled(false);
+
         panelExtras.add(new JLabel("Stickers:"));
         panelExtras.add(comboStickers);
         panelExtras.add(btnSticker);
         panelExtras.add(btnPrivado);
         panelExtras.add(btnGrabarAudio);
+        panelExtras.add(btnReproducirAudio);
 
         panelInferior.add(campoMensaje, BorderLayout.CENTER);
         panelInferior.add(btnEnviar, BorderLayout.EAST);
         panelInferior.add(panelExtras, BorderLayout.NORTH);
 
-        // ========== AGREGAR COMPONENTES ==========
-        add(panelIzquierdo, BorderLayout.WEST); // NUEVO: Panel de salas
+        // Agregar componentes
+        add(panelIzquierdo, BorderLayout.WEST);
         add(panelSuperior, BorderLayout.NORTH);
         add(scrollChat, BorderLayout.CENTER);
         add(scrollUsuarios, BorderLayout.EAST);
         add(panelInferior, BorderLayout.SOUTH);
 
-        // ========== EVENTOS ==========
+        // Eventos
         btnCrearSala.addActionListener(e -> crearSala());
         btnUnirse.addActionListener(e -> unirseASala());
         btnSalir.addActionListener(e -> salirDeSala());
@@ -151,6 +170,7 @@ public class ClienteChat extends JFrame {
         btnPrivado.addActionListener(e -> enviarMensajePrivado());
         campoMensaje.addActionListener(e -> enviarMensaje());
         btnGrabarAudio.addActionListener(e -> manejarGrabacionAudio());
+        btnReproducirAudio.addActionListener(e -> reproducirUltimoAudio());
 
         setVisible(true);
     }
@@ -168,7 +188,6 @@ public class ClienteChat extends JFrame {
         }
     }
 
-    // Hilo para recibir respuestas del servidor (comunicación directa)
     private void iniciarHiloReceptorServidor() {
         Thread hilo = new Thread(() -> {
             try {
@@ -195,11 +214,22 @@ public class ClienteChat extends JFrame {
     private void procesarRespuestaServidor(Mensaje mensaje) {
         String contenido = mensaje.getContenido();
 
-        // Si incluye dirección multicast, es respuesta de crear/unirse a sala
+        if (contenido.startsWith("AUDIO:")) {
+            String usuarioAudio = contenido.substring(6);
+            usuarioAudioRecibido = usuarioAudio;
+            ultimoAudioRecibido = mensaje.getDatos();
+            
+            mostrarMensaje("🎧 Audio recibido de " + usuarioAudio + " (" + 
+                          (ultimoAudioRecibido != null ? ultimoAudioRecibido.length / 1024 : 0) + " KB)");
+            
+            btnReproducirAudio.setEnabled(true);
+            btnReproducirAudio.setBackground(Color.GREEN);
+            return;
+        }
+
         if (mensaje.getDireccionMulticast() != null) {
             String sala = mensaje.getSala();
             if (sala == null || sala.isEmpty()) {
-                // Es respuesta de CREAR_SALA, extraer nombre
                 if (contenido.contains("'")) {
                     int inicio = contenido.indexOf("'") + 1;
                     int fin = contenido.lastIndexOf("'");
@@ -215,7 +245,6 @@ public class ClienteChat extends JFrame {
         mostrarMensaje(contenido);
     }
 
-    // NUEVO: Unirse a un grupo multicast para escuchar mensajes de la sala
     private void unirseAGrupoMulticast(String nombreSala, String direccionMulticast) {
         if (salasActivas.containsKey(nombreSala)) {
             mostrarMensaje("⚠️ Ya estás en la sala " + nombreSala);
@@ -226,21 +255,16 @@ public class ClienteChat extends JFrame {
             MulticastSocket socketMulticast = new MulticastSocket(PUERTO_MULTICAST);
             InetAddress grupo = InetAddress.getByName(direccionMulticast);
 
-            // Unirse al grupo multicast
             socketMulticast.joinGroup(grupo);
 
-            // Crear info de la sala
             SalaInfo salaInfo = new SalaInfo(nombreSala, direccionMulticast,
                                             socketMulticast, grupo);
             salasActivas.put(nombreSala, salaInfo);
 
-            // Agregar a la lista visual
             modeloSalas.addElement(nombreSala);
 
-            // Iniciar hilo receptor para esta sala
             iniciarReceptorMulticast(salaInfo);
 
-            // Seleccionar esta sala automáticamente
             listaSalas.setSelectedValue(nombreSala, true);
 
             mostrarMensaje("🎉 Conectado a grupo multicast de " + nombreSala);
@@ -255,7 +279,6 @@ public class ClienteChat extends JFrame {
         }
     }
 
-    // NUEVO: Hilo para escuchar mensajes multicast de una sala específica
     private void iniciarReceptorMulticast(SalaInfo salaInfo) {
         Thread hilo = new Thread(() -> {
             try {
@@ -283,19 +306,29 @@ public class ClienteChat extends JFrame {
     private void procesarMensajeMulticast(Mensaje mensaje, String nombreSala) {
         String contenido = mensaje.getContenido();
 
-        // Actualizar lista de usuarios si es necesario
+        if (contenido.startsWith("AUDIO:")) {
+            String usuarioAudio = contenido.substring(6);
+            usuarioAudioRecibido = usuarioAudio;
+            ultimoAudioRecibido = mensaje.getDatos();
+            
+            mostrarMensajeSala("🎧 Audio recibido de " + usuarioAudio + " (" + 
+                              (ultimoAudioRecibido != null ? ultimoAudioRecibido.length / 1024 : 0) + " KB)");
+            
+            btnReproducirAudio.setEnabled(true);
+            btnReproducirAudio.setBackground(Color.GREEN);
+            return;
+        }
+
         if (contenido.startsWith("USUARIOS:")) {
             if (nombreSala.equals(salaSeleccionada)) {
                 String listaStr = contenido.substring(9);
                 actualizarListaUsuarios(listaStr);
             }
         } else {
-            // Guardar mensaje en el historial de la sala
             SalaInfo sala = salasActivas.get(nombreSala);
             if (sala != null) {
                 sala.agregarMensaje("[" + nombreSala + "] " + contenido);
 
-                // Si esta es la sala activa, mostrar el mensaje
                 if (nombreSala.equals(salaSeleccionada)) {
                     mostrarMensajeSala(contenido);
                 }
@@ -303,7 +336,19 @@ public class ClienteChat extends JFrame {
         }
     }
 
-    // NUEVO: Cambiar la sala activa cuando se selecciona en la lista
+    private void reproducirUltimoAudio() {
+        if (ultimoAudioRecibido != null && ultimoAudioRecibido.length > 0) {
+            try {
+                mostrarMensaje("🔊 Reproduciendo audio de " + usuarioAudioRecibido + "...");
+                ManejadorAudio.reproducirAudio(ultimoAudioRecibido);
+            } catch (Exception e) {
+                mostrarMensaje("❌ Error reproduciendo audio: " + e.getMessage());
+            }
+        } else {
+            mostrarMensaje("❌ No hay audio para reproducir");
+        }
+    }
+
     private void cambiarSalaActiva() {
         String seleccion = listaSalas.getSelectedValue();
         if (seleccion != null && !seleccion.equals(salaSeleccionada)) {
@@ -311,7 +356,6 @@ public class ClienteChat extends JFrame {
             labelSalaActual.setText(salaSeleccionada);
             labelSalaActual.setForeground(Color.BLUE);
 
-            // Limpiar y mostrar historial de la sala
             areaChat.setText("");
             SalaInfo sala = salasActivas.get(salaSeleccionada);
             if (sala != null) {
@@ -355,20 +399,16 @@ public class ClienteChat extends JFrame {
             SalaInfo sala = salasActivas.get(salaSeleccionada);
             if (sala != null) {
                 try {
-                    // Salir del grupo multicast
                     sala.socket.leaveGroup(sala.grupo);
                     sala.socket.close();
 
-                    // Notificar al servidor
                     Mensaje msg = new Mensaje(Mensaje.SALIR_SALA, nombreUsuario,
                                              salaSeleccionada, "");
                     enviarAlServidor(msg);
 
-                    // Remover de la lista
                     salasActivas.remove(salaSeleccionada);
                     modeloSalas.removeElement(salaSeleccionada);
 
-                    // Limpiar selección
                     salaSeleccionada = null;
                     labelSalaActual.setText("Sin sala");
                     labelSalaActual.setForeground(Color.BLACK);
@@ -494,13 +534,11 @@ public class ClienteChat extends JFrame {
         if (!mensaje.startsWith("[" + salaSeleccionada + "]")) {
             areaChat.append(mensaje + "\n");
         } else {
-            // Ya tiene el prefijo de sala
             areaChat.append(mensaje.substring(salaSeleccionada.length() + 3) + "\n");
         }
         areaChat.setCaretPosition(areaChat.getDocument().getLength());
     }
 
-    // NUEVA CLASE: Información de cada sala
     private class SalaInfo {
         String nombre;
         String direccionMulticast;
@@ -526,4 +564,3 @@ public class ClienteChat extends JFrame {
         SwingUtilities.invokeLater(() -> new ClienteChat());
     }
 }
-

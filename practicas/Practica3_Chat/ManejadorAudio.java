@@ -2,7 +2,8 @@ import javax.sound.sampled.*;
 import java.io.*;
 
 public class ManejadorAudio {
-    private static final AudioFormat formato = new AudioFormat(16000, 8, 1, true, true);
+    // Formato de audio compatible con Java Sound
+    private static final AudioFormat formato = new AudioFormat(16000, 16, 1, true, false);
     private TargetDataLine lineaEntrada;
     private boolean grabando = false;
     private ByteArrayOutputStream streamAudio;
@@ -12,7 +13,7 @@ public class ManejadorAudio {
         DataLine.Info info = new DataLine.Info(TargetDataLine.class, formato);
 
         if(!AudioSystem.isLineSupported(info)) {
-            throw new LineUnavailableException("Micrófono no disponible");
+            throw new LineUnavailableException("Micrófono no disponible o formato no soportado");
         }
 
         lineaEntrada = (TargetDataLine) AudioSystem.getLine(info);
@@ -22,15 +23,20 @@ public class ManejadorAudio {
         grabando = true;
         streamAudio = new ByteArrayOutputStream();
 
-        // Hilo para capturar audioi
+        // Hilo para capturar audio
         Thread hiloCaptura = new Thread(() -> {
             byte[] buffer = new byte[4096];
             while(grabando) {
                 int bytesLeidos = lineaEntrada.read(buffer, 0, buffer.length);
-                streamAudio.write(buffer, 0, bytesLeidos);
+                if (bytesLeidos > 0) {
+                    streamAudio.write(buffer, 0, bytesLeidos);
+                }
             }
         });
+        hiloCaptura.setDaemon(true);
         hiloCaptura.start();
+        
+        System.out.println("🎤 Grabación iniciada...");
     }
 
     // Detener grabación y obtener bytes
@@ -40,34 +46,87 @@ public class ManejadorAudio {
             lineaEntrada.stop();
             lineaEntrada.close();
         }
-        return streamAudio.toByteArray();
+        
+        byte[] audioData = streamAudio.toByteArray();
+        System.out.println("⏹️ Grabación detenida: " + audioData.length + " bytes");
+        return audioData;
     }
     
-    // Reproducri audio desde bytes
-    public static void reproducriAudio(byte[] datosAudio) {
-        try{
+    // Reproducir audio desde bytes usando Java Sound
+    public static void reproducirAudio(byte[] datosAudio) {
+        if (datosAudio == null || datosAudio.length == 0) {
+            System.err.println("❌ No hay datos de audio para reproducir");
+            return;
+        }
+        
+        System.out.println("🔊 Intentando reproducir audio: " + datosAudio.length + " bytes");
+        
+        try {
             ByteArrayInputStream bais = new ByteArrayInputStream(datosAudio);
-            AudioInputStream audioInputStream = new AudioInputStream(bais, formato, datosAudio.length);
+            AudioInputStream audioInputStream = new AudioInputStream(bais, formato, 
+                datosAudio.length / formato.getFrameSize());
+            
             DataLine.Info info = new DataLine.Info(SourceDataLine.class, formato);
+            
+            if (!AudioSystem.isLineSupported(info)) {
+                System.err.println("❌ Línea de audio no soportada para reproducción");
+                return;
+            }
+            
             SourceDataLine lineaSalida = (SourceDataLine) AudioSystem.getLine(info);
+            lineaSalida.open(formato);
             lineaSalida.start();
 
+            System.out.println("▶️ Reproduciendo audio...");
+
             // Reproducir en un hilo separado
-            new Thread(() -> {
+            Thread hiloReproduccion = new Thread(() -> {
                 try {
                     byte[] buffer = new byte[4096];
                     int bytesLeidos;
-                    while((bytesLeidos = audioInputStream.read(buffer, 0, buffer.length)) != -1) {
-                        lineaSalida.write(buffer, 0, bytesLeidos);
+                    while((bytesLeidos = audioInputStream.read(buffer)) != -1) {
+                        if(bytesLeidos > 0) {
+                            lineaSalida.write(buffer, 0, bytesLeidos);
+                        }
                     }
                     lineaSalida.drain();
                     lineaSalida.close();
+                    audioInputStream.close();
+                    System.out.println("✅ Audio reproducido correctamente");
                 } catch (IOException e) {
-                    System.err.println("Error reproduciendo audio: " + e.getMessage());
+                    System.err.println("❌ Error reproduciendo audio: " + e.getMessage());
                 }
-            }).start();
+            });
+            hiloReproduccion.setDaemon(true);
+            hiloReproduccion.start();
+            
+        } catch (LineUnavailableException e) {
+            System.err.println("❌ Línea de audio no disponible: " + e.getMessage());
         } catch (Exception e) {
-            System.err.println("Error al reproducir: " + e.getMessage());
+            System.err.println("❌ Error al reproducir audio: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    // Método para verificar disponibilidad de audio
+    public static boolean verificarAudioDisponible() {
+        try {
+            // Verificar grabación
+            AudioFormat format = new AudioFormat(16000, 16, 1, true, false);
+            DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
+            boolean puedeGrabar = AudioSystem.isLineSupported(info);
+            
+            // Verificar reproducción
+            info = new DataLine.Info(SourceDataLine.class, format);
+            boolean puedeReproducir = AudioSystem.isLineSupported(info);
+            
+            System.out.println("🎤 Puede grabar: " + puedeGrabar);
+            System.out.println("🔊 Puede reproducir: " + puedeReproducir);
+            
+            return puedeGrabar && puedeReproducir;
+        } catch (Exception e) {
+            System.err.println("❌ Error verificando audio: " + e.getMessage());
+            return false;
         }
     }
 }

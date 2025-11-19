@@ -4,7 +4,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Servidor {
-    private static final int PUERTO = 9876;
+    private static final int PUERTO = 6000;
     private static final int PUERTO_MULTICAST = 6789; // Puerto para mensajes multicast
     private static final String BASE_MULTICAST = "230.0.0."; // Rango multicast
 
@@ -51,7 +51,8 @@ public class Servidor {
             int clientePuerto = paquete.getPort();
 
             System.out.println("📩 Recibido: " + mensaje.getTipo() +
-                             " de " + mensaje.getUsuario());
+                             " de " + mensaje.getUsuario() +
+                             " Datos: " + (mensaje.getDatos() != null ? mensaje.getDatos().length + " bytes" : "null"));
 
             switch (mensaje.getTipo()) {
                 case Mensaje.CREAR_SALA:
@@ -79,7 +80,7 @@ public class Servidor {
                     confirmarUnionSala(mensaje, clienteIP, clientePuerto);
                     break;
                 case Mensaje.ENVIAR_AUDIO:
-                    enviarAudioASala(mensaje);
+                    enviarAudioASala(mensaje); // CORREGIDO: Ahora pasa el mensaje completo
                     break;
             }
 
@@ -182,17 +183,26 @@ public class Servidor {
 
     private void enviarAudioASala(Mensaje msg) {
         Sala sala = salas.get(msg.getSala());
-        if(sala != null) {
-            Mensaje msgAudio = new Mensaje(Mensaje.RESPUESTA, "Servidor", msg.getSala(), "AUDIO:" + msg.getUsuario());
-
+        if(sala != null && msg.getDatos() != null && msg.getDatos().length > 0) {
             try {
+                // CORREGIDO: Enviar el mensaje completo con los datos de audio
+                Mensaje msgAudio = new Mensaje(Mensaje.RESPUESTA, msg.getUsuario(), msg.getSala(), "AUDIO:" + msg.getUsuario());
+                msgAudio.setDatos(msg.getDatos()); // IMPORTANTE: Conservar los datos de audio
+                
                 byte[] datos = msgAudio.toBytes();
                 InetAddress grupoMulticast = InetAddress.getByName(sala.getDireccionMulticast());
                 DatagramPacket paquete = new DatagramPacket(datos, datos.length, grupoMulticast, PUERTO_MULTICAST);
                 socket.send(paquete);
-                System.out.println("🎤 Audio enviado de " + msg.getUsuario() + " a sala " + msg.getSala());
+                System.out.println("🎤 Audio enviado de " + msg.getUsuario() + " a sala " + msg.getSala() + " (" + msg.getDatos().length + " bytes)");
             } catch (Exception e) {
-                System.err.println("Error enviando audio " + e.getMessage());
+                System.err.println("Error enviando audio: " + e.getMessage());
+            }
+        } else {
+            System.err.println("❌ Error: Audio vacío o sala no encontrada");
+            if (msg.getDatos() == null) {
+                System.err.println("Datos de audio son null");
+            } else if (msg.getDatos().length == 0) {
+                System.err.println("Datos de audio están vacíos");
             }
         }
     }
