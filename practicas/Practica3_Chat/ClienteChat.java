@@ -50,6 +50,63 @@ public class ClienteChat extends JFrame {
         configurarVentana();
         configurarSocket();
         iniciarHiloReceptorServidor();
+        
+        // NUEVO: Agregar shutdown hook para limpieza
+        agregarShutdownHook();
+    }
+
+    // NUEVO: Método para limpiar al cerrar
+    private void agregarShutdownHook() {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println(" Cerrando cliente...");
+            limpiarRecursos();
+        }));
+    }
+
+    // NUEVO: Limpiar todos los recursos
+    private void limpiarRecursos() {
+        try {
+            // Salir de todas las salas
+            for (String sala : new ArrayList<>(salasActivas.keySet())) {
+                salirDeSalaSilenciosamente(sala);
+            }
+            
+            // Cerrar socket principal
+            if (socketCliente != null && !socketCliente.isClosed()) {
+                socketCliente.close();
+            }
+            
+            System.out.println("Recursos limpiados correctamente");
+        } catch (Exception e) {
+            System.err.println(" Error limpiando recursos: " + e.getMessage());
+        }
+    }
+
+    // NUEVO: Salir de sala sin mostrar mensajes en GUI
+    private void salirDeSalaSilenciosamente(String nombreSala) {
+        SalaInfo sala = salasActivas.get(nombreSala);
+        if (sala != null) {
+            try {
+                // Salir del grupo multicast
+                sala.socket.leaveGroup(sala.grupo);
+                sala.socket.close();
+
+                // Notificar al servidor
+                Mensaje msg = new Mensaje(Mensaje.SALIR_SALA, nombreUsuario, nombreSala, "");
+                enviarAlServidor(msg);
+
+                System.out.println("✅ Salió silenciosamente de la sala: " + nombreSala);
+            } catch (Exception e) {
+                System.err.println("❌ Error saliendo de sala " + nombreSala + ": " + e.getMessage());
+            }
+        }
+    }
+
+    // NUEVO: Override del método cerrar ventana
+    @Override
+    public void dispose() {
+        limpiarRecursos();
+        super.dispose();
     }
 
     private void verificarAudio() {
@@ -65,7 +122,16 @@ public class ClienteChat extends JFrame {
     private void configurarVentana() {
         setTitle("💬 Chat - Usuario: " + nombreUsuario);
         setSize(1100, 600);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE); // Cambiado para manejar el cierre
+        
+        // NUEVO: Listener para cerrar ventana
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent windowEvent) {
+                cerrarAplicacion();
+            }
+        });
+        
         setLayout(new BorderLayout(10, 10));
 
         // Panel Izquierdo: Lista de Salas
@@ -175,11 +241,24 @@ public class ClienteChat extends JFrame {
         setVisible(true);
     }
 
+    // NUEVO: Método para cerrar la aplicación correctamente
+    private void cerrarAplicacion() {
+        int opcion = JOptionPane.showConfirmDialog(this,
+            "¿Estás seguro de que quieres salir del chat?",
+            "Confirmar salida",
+            JOptionPane.YES_NO_OPTION);
+            
+        if (opcion == JOptionPane.YES_OPTION) {
+            limpiarRecursos();
+            System.exit(0);
+        }
+    }
+
     private void configurarSocket() {
         try {
             int puerto = CLIENTE_PUERTO + new Random().nextInt(1000);
             socketCliente = new DatagramSocket(puerto);
-            mostrarMensaje("✅ Cliente iniciado en puerto " + puerto);
+            mostrarMensaje("Cliente iniciado en puerto " + puerto);
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this,
                 "Error al iniciar cliente: " + e.getMessage(),
@@ -219,7 +298,7 @@ public class ClienteChat extends JFrame {
             usuarioAudioRecibido = usuarioAudio;
             ultimoAudioRecibido = mensaje.getDatos();
             
-            mostrarMensaje("🎧 Audio recibido de " + usuarioAudio + " (" + 
+            mostrarMensaje("Audio recibido de " + usuarioAudio + " (" + 
                           (ultimoAudioRecibido != null ? ultimoAudioRecibido.length / 1024 : 0) + " KB)");
             
             btnReproducirAudio.setEnabled(true);
@@ -247,7 +326,7 @@ public class ClienteChat extends JFrame {
 
     private void unirseAGrupoMulticast(String nombreSala, String direccionMulticast) {
         if (salasActivas.containsKey(nombreSala)) {
-            mostrarMensaje("⚠️ Ya estás en la sala " + nombreSala);
+            mostrarMensaje(" Ya estás en la sala " + nombreSala);
             return;
         }
 
@@ -342,10 +421,10 @@ public class ClienteChat extends JFrame {
                 mostrarMensaje("🔊 Reproduciendo audio de " + usuarioAudioRecibido + "...");
                 ManejadorAudio.reproducirAudio(ultimoAudioRecibido);
             } catch (Exception e) {
-                mostrarMensaje("❌ Error reproduciendo audio: " + e.getMessage());
+                mostrarMensaje(" Error reproduciendo audio: " + e.getMessage());
             }
         } else {
-            mostrarMensaje("❌ No hay audio para reproducir");
+            mostrarMensaje(" No hay audio para reproducir");
         }
     }
 
@@ -414,6 +493,8 @@ public class ClienteChat extends JFrame {
                     labelSalaActual.setForeground(Color.BLACK);
                     areaChat.setText("");
                     modeloUsuarios.clear();
+
+                    mostrarMensaje("✅ Saliste de la sala");
 
                 } catch (Exception e) {
                     mostrarMensaje("Error al salir: " + e.getMessage());
@@ -505,7 +586,7 @@ public class ClienteChat extends JFrame {
                 Mensaje msg = new Mensaje(Mensaje.ENVIAR_AUDIO, nombreUsuario, salaSeleccionada, "");
                 msg.setDatos(datosAudio);
                 enviarAlServidor(msg);
-                mostrarMensaje("✅ Audio enviado (" + (datosAudio.length / 1024) + " KB)");
+                mostrarMensaje(" Audio enviado (" + (datosAudio.length / 1024) + " KB)");
             } else {
                 JOptionPane.showMessageDialog(this, "Audio muy corto. Intenta grabar más tiempo.");
             }

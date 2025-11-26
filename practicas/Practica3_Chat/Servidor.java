@@ -22,8 +22,8 @@ public class Servidor {
     public void iniciar() {
         try {
             socket = new DatagramSocket(PUERTO);
-            System.out.println("🚀 Servidor iniciado en puerto " + PUERTO);
-            System.out.println("📡 Modo multicast activado");
+            System.out.println(" Servidor iniciado en puerto " + PUERTO);
+            System.out.println(" Modo multicast activado");
 
             while (corriendo) {
                 byte[] buffer = new byte[65535];
@@ -50,7 +50,7 @@ public class Servidor {
             InetAddress clienteIP = paquete.getAddress();
             int clientePuerto = paquete.getPort();
 
-            System.out.println("📩 Recibido: " + mensaje.getTipo() +
+            System.out.println(" Recibido: " + mensaje.getTipo() +
                              " de " + mensaje.getUsuario() +
                              " Datos: " + (mensaje.getDatos() != null ? mensaje.getDatos().length + " bytes" : "null"));
 
@@ -101,13 +101,13 @@ public class Servidor {
 
             // Enviar respuesta con la dirección multicast
             Mensaje respuesta = new Mensaje(Mensaje.RESPUESTA, "Servidor", "",
-                                           "✅ Sala '" + nombreSala + "' creada");
+                                           " Sala '" + nombreSala + "' creada");
             respuesta.setDireccionMulticast(direccionMulticast);
             enviarPaquete(respuesta, ip, puerto);
 
             System.out.println("Sala creada: " + nombreSala + " -> " + direccionMulticast);
         } else {
-            enviarRespuesta(msg.getUsuario(), "⚠️ La sala ya existe", ip, puerto);
+            enviarRespuesta(msg.getUsuario(), " La sala ya existe", ip, puerto);
         }
     }
 
@@ -124,7 +124,7 @@ public class Servidor {
             respuesta.setDireccionMulticast(sala.getDireccionMulticast());
             enviarPaquete(respuesta, ip, puerto);
         } else {
-            enviarRespuesta(msg.getUsuario(), "❌ La sala no existe", ip, puerto);
+            enviarRespuesta(msg.getUsuario(), " La sala no existe", ip, puerto);
         }
     }
 
@@ -154,7 +154,7 @@ public class Servidor {
                 System.out.println("Sala '" + nombreSala + "' eliminada (vacía)");
             }
 
-            enviarRespuesta(msg.getUsuario(), "✅ Saliste de '" + nombreSala + "'", ip, puerto);
+            enviarRespuesta(msg.getUsuario(), " Saliste de '" + nombreSala + "'", ip, puerto);
         }
     }
 
