@@ -95,9 +95,9 @@ public class ClienteChat extends JFrame {
                 Mensaje msg = new Mensaje(Mensaje.SALIR_SALA, nombreUsuario, nombreSala, "");
                 enviarAlServidor(msg);
 
-                System.out.println("✅ Salió silenciosamente de la sala: " + nombreSala);
+                System.out.println(" Salió silenciosamente de la sala: " + nombreSala);
             } catch (Exception e) {
-                System.err.println("❌ Error saliendo de sala " + nombreSala + ": " + e.getMessage());
+                System.err.println(" Error saliendo de sala " + nombreSala + ": " + e.getMessage());
             }
         }
     }
@@ -113,14 +113,14 @@ public class ClienteChat extends JFrame {
         boolean audioDisponible = ManejadorAudio.verificarAudioDisponible();
         if (!audioDisponible) {
             JOptionPane.showMessageDialog(this, 
-                "⚠️ El audio no está disponible en este sistema.\n" +
+                " El audio no está disponible en este sistema.\n" +
                 "La funcionalidad de audio podría no funcionar correctamente.",
                 "Advertencia de Audio", JOptionPane.WARNING_MESSAGE);
         }
     }
 
     private void configurarVentana() {
-        setTitle("💬 Chat - Usuario: " + nombreUsuario);
+        setTitle("Chat - Usuario: " + nombreUsuario);
         setSize(1100, 600);
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE); // Cambiado para manejar el cierre
         
@@ -136,7 +136,7 @@ public class ClienteChat extends JFrame {
 
         // Panel Izquierdo: Lista de Salas
         JPanel panelIzquierdo = new JPanel(new BorderLayout());
-        panelIzquierdo.setBorder(BorderFactory.createTitledBorder("🏠 Mis Salas"));
+        panelIzquierdo.setBorder(BorderFactory.createTitledBorder("Mis Salas"));
         panelIzquierdo.setPreferredSize(new Dimension(200, 0));
 
         modeloSalas = new DefaultListModel<>();
@@ -157,10 +157,10 @@ public class ClienteChat extends JFrame {
         JPanel panelSuperior = new JPanel(new FlowLayout(FlowLayout.LEFT));
         panelSuperior.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
-        btnCrearSala = new JButton("➕ Crear Sala");
-        btnUnirse = new JButton("🚪 Unirse");
-        btnSalir = new JButton("🚫 Salir de Sala");
-        btnListarUsuarios = new JButton("👥 Usuarios");
+        btnCrearSala = new JButton("Crear Sala");
+        btnUnirse = new JButton("Unirse");
+        btnSalir = new JButton("Salir de Sala");
+        btnListarUsuarios = new JButton("Usuarios");
         labelSalaActual = new JLabel("Sin sala seleccionada");
         labelSalaActual.setFont(new Font("Arial", Font.BOLD, 14));
 
@@ -182,7 +182,7 @@ public class ClienteChat extends JFrame {
         // Panel Derecho: Usuarios
         modeloUsuarios = new DefaultListModel<>();
         listaUsuarios = new JList<>(modeloUsuarios);
-        listaUsuarios.setBorder(BorderFactory.createTitledBorder("👥 Usuarios"));
+        listaUsuarios.setBorder(BorderFactory.createTitledBorder("Usuarios"));
         JScrollPane scrollUsuarios = new JScrollPane(listaUsuarios);
         scrollUsuarios.setPreferredSize(new Dimension(180, 0));
 
@@ -198,12 +198,12 @@ public class ClienteChat extends JFrame {
         String[] stickers = {"😀", "😂", "❤️", "👍", "🎉", "🔥", "💯", "✨"};
         comboStickers = new JComboBox<>(stickers);
         JButton btnSticker = new JButton("Sticker");
-        JButton btnPrivado = new JButton("💌 Privado");
-        btnGrabarAudio = new JButton("🎤 Grabar Audio");
+        JButton btnPrivado = new JButton("Privado");
+        btnGrabarAudio = new JButton("Grabar Audio");
         btnGrabarAudio.setBackground(Color.RED);
         btnGrabarAudio.setForeground(Color.WHITE);
 
-        btnReproducirAudio = new JButton("🔊 Reproducir Audio");
+        btnReproducirAudio = new JButton("Reproducir Audio");
         btnReproducirAudio.setBackground(Color.BLUE);
         btnReproducirAudio.setForeground(Color.WHITE);
         btnReproducirAudio.setEnabled(false);
@@ -390,7 +390,7 @@ public class ClienteChat extends JFrame {
             usuarioAudioRecibido = usuarioAudio;
             ultimoAudioRecibido = mensaje.getDatos();
             
-            mostrarMensajeSala("🎧 Audio recibido de " + usuarioAudio + " (" + 
+            mostrarMensajeSala("Audio recibido de " + usuarioAudio + " (" + 
                               (ultimoAudioRecibido != null ? ultimoAudioRecibido.length / 1024 : 0) + " KB)");
             
             btnReproducirAudio.setEnabled(true);
@@ -418,7 +418,7 @@ public class ClienteChat extends JFrame {
     private void reproducirUltimoAudio() {
         if (ultimoAudioRecibido != null && ultimoAudioRecibido.length > 0) {
             try {
-                mostrarMensaje("🔊 Reproduciendo audio de " + usuarioAudioRecibido + "...");
+                mostrarMensaje("Reproduciendo audio de " + usuarioAudioRecibido + "...");
                 ManejadorAudio.reproducirAudio(ultimoAudioRecibido);
             } catch (Exception e) {
                 mostrarMensaje(" Error reproduciendo audio: " + e.getMessage());
@@ -494,7 +494,7 @@ public class ClienteChat extends JFrame {
                     areaChat.setText("");
                     modeloUsuarios.clear();
 
-                    mostrarMensaje("✅ Saliste de la sala");
+                    mostrarMensaje("Saliste de la sala");
 
                 } catch (Exception e) {
                     mostrarMensaje("Error al salir: " + e.getMessage());
@@ -568,9 +568,9 @@ public class ClienteChat extends JFrame {
             try {
                 manejadorAudio.iniciarGrabacion();
                 grabandoAudio = true;
-                btnGrabarAudio.setText("◼ Detener");
+                btnGrabarAudio.setText("Detener");
                 btnGrabarAudio.setBackground(Color.GREEN);
-                mostrarMensaje("🎤 Grabando audio...");
+                mostrarMensaje("Grabando audio...");
             } catch (Exception e) {
                 JOptionPane.showMessageDialog(this,
                     "Error al acceder al micrófono: " + e.getMessage(), 
@@ -579,7 +579,7 @@ public class ClienteChat extends JFrame {
         } else {
             byte[] datosAudio = manejadorAudio.detenerGrabacion();
             grabandoAudio = false;
-            btnGrabarAudio.setText("🎤 Grabar Audio");
+            btnGrabarAudio.setText("Grabar Audio");
             btnGrabarAudio.setBackground(Color.RED);
 
             if(datosAudio.length > 1000) {

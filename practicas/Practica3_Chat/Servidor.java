@@ -193,12 +193,12 @@ public class Servidor {
                 InetAddress grupoMulticast = InetAddress.getByName(sala.getDireccionMulticast());
                 DatagramPacket paquete = new DatagramPacket(datos, datos.length, grupoMulticast, PUERTO_MULTICAST);
                 socket.send(paquete);
-                System.out.println("🎤 Audio enviado de " + msg.getUsuario() + " a sala " + msg.getSala() + " (" + msg.getDatos().length + " bytes)");
+                System.out.println("Audio enviado de " + msg.getUsuario() + " a sala " + msg.getSala() + " (" + msg.getDatos().length + " bytes)");
             } catch (Exception e) {
                 System.err.println("Error enviando audio: " + e.getMessage());
             }
         } else {
-            System.err.println("❌ Error: Audio vacío o sala no encontrada");
+            System.err.println("Error: Audio vacío o sala no encontrada");
             if (msg.getDatos() == null) {
                 System.err.println("Datos de audio son null");
             } else if (msg.getDatos().length == 0) {
@@ -211,7 +211,7 @@ public class Servidor {
         Sala sala = salas.get(msg.getSala());
         if (sala != null) {
             Set<String> usuarios = sala.getUsuarios();
-            String lista = "👥 Usuarios en " + msg.getSala() + ":\n" +
+            String lista = "Usuarios en " + msg.getSala() + ":\n" +
                           String.join(", ", usuarios);
             enviarRespuesta(msg.getUsuario(), lista, ip, puerto);
         }
