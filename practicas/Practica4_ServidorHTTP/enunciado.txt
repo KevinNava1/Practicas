@@ -1,0 +1,34 @@
+Programar una aplicación servidor HTTP que atienda peticiones de tipo GET, POST, PUT, DELETE
+para al menos 4 tipos MIME distintos. El servidor contará con un pool de conexiones 
+(tamaño definido por el usuario) y cuando el pool supere la mitad del tamaño se deberá 
+iniciar un segundo servidor y redireccionar las peticiones al segundo servidor.
+
+
+Compilar:   javac Main.java
+Ejecutar:   java Main --port 8080 --redirect-port 8081 --pool 4
+
+Comandos de pruebas
+GET
+curl -i http://localhost:8080/html
+curl -i http://localhost:8080/text
+curl -i http://localhost:8080/json
+curl -i http://localhost:8080/image.png
+curl -i http://localhost:8080/style.css
+
+POST(echo)
+curl -i -X POST http://localhost:8080/echo -H "Content-Type: application/json" -d "{\"msg\":\"hola\"}"
+
+PUT
+curl -i -X PUT http://localhost:8080/resource -H "Content-Type: text/plain" --data-binary "contenido"
+
+DELETE
+curl -i -X DELETE http://localhost:8080/resource
+
+Redirect
+curl -i "http://localhost:8080/sleep?ms=10000"
+curl -i http://localhost:8080/json
+
+Puerto secundario
+curl -i http://localhost:8081/json
+
+

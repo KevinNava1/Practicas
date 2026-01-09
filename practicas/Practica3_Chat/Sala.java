@@ -61,3 +61,10 @@ public class Sala {
     }
 }
 
+Server1
+ServerWeb
+
+Clientes HttpExchange Postman, Euphoria, Cliente Telnet, Curl, net
+Probar peticiones
+
+Hilo de descarga con variable de condición

@@ -1,0 +1,11 @@
+Actividades de clase
+
+Cliente:
+Desde el hilo principal (main) se lanzará un nuevo hilo (hilo de transmisión) cuya tarea será enviar un archivo al servidor (cualquier
+tipo de archivo, usando el tipo se socket de datagrama, tal como lo realizado en la práctica 2). Además de lanzar la tarea de envío de archivo, en el hilo principal crearás un menú desde donde el usuario podrá pausar, detener or eanudar la transmisión del archivo.
+Para hacer esto crearás un monitor de acceso y una variable de condición. Cada que el hilo de transmisión intene enviar un datagrama primero validará una bandera para saber si puede transmitir, en caso de que la bandera esté apagada el hilo se bloqueará a través de la variable de condición y olo se podrá desbloquear cuando el usuario elija reanudar la transmisión cambiando el estado de la bandera y desbloqueeando al hilo a través de la variable de condición.
+
+Servidor:
+El cliente solo se encargará de recibir el rachivo mediante socket de datagrama.
+Dashboards
+4.2.1, 4.2.2 8/1/2026
